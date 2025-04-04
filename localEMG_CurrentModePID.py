@@ -24,7 +24,7 @@ ADDR_GOAL_POSITION = 116  # goal position
 TORQUE_ENABLE = 1
 TORQUE_DISABLE = 0
 MAX_CURRENT = 6  # Maximum current (mA)
-POS_MIN = 180    # Minimum angle (°)
+POS_MIN = 0    # Minimum angle (°)
 POS_MAX = 300    # Maximum angle (°)
 DXL_RESOLUTION = 4095 / 360.0  # Dynamixel angle resolution
 POS_180 = int(180 * DXL_RESOLUTION)
@@ -68,7 +68,7 @@ def stop_motor(signal, frame):
 signal.signal(signal.SIGINT, stop_motor)
 
 # init 180 degree
-print("Set the motor initial position to 180°.")
+print("Set the motor initial position to 0°.")
 packetHandler.write1ByteTxRx(portHandler, DXL_ID, ADDR_TORQUE_ENABLE, TORQUE_DISABLE)
 packetHandler.write1ByteTxRx(portHandler, DXL_ID, ADDR_OPERATING_MODE, POSITION_CONTROL_MODE)
 packetHandler.write1ByteTxRx(portHandler, DXL_ID, ADDR_TORQUE_ENABLE, TORQUE_ENABLE)
@@ -80,8 +80,8 @@ while True:
 
     print(f"🎯 当前位置: {current_angle:.2f}°")
     
-    if abs(current_angle - 180) <= TOLERANCE:
-        print("✅ 电机已到达 180°，切换到 Current Mode 进行 EMG 控制")
+    if abs(current_angle - 0) <= TOLERANCE:
+        print("✅ 电机已到达 0°，切换到 Current Mode 进行 EMG 控制")
         break
 
     time.sleep(0.1)
