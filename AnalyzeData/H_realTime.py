@@ -4,47 +4,29 @@ import numpy as np
 import joblib
 from scipy.signal import butter, filtfilt
 from collections import deque
-import matplotlib.pyplot as plt
+import pyqtgraph as pg
+from pyqtgraph.Qt import QtWidgets, QtCore
+import sys
 
-# ==== Serial Configuration ====
-SERIAL_PORT = '/dev/ttyUSB0'
-BAUD_RATE = 9600
+# ==== Config ====
+SERIAL_PORT = '/dev/tty.usbserial-110'
+BAUD_RATE = 115200
+FS = 500  # Hz
+WINDOW_SIZE = int(0.4 * FS)
+STEP_SIZE = int(0.2 * FS)
 
-# ==== Sliding Window Parameters ====
-FS = 1000  # Sampling rate (Hz)
-WINDOW_SIZE = int(0.2 * FS)  # 200ms window
-STEP_SIZE = int(0.1 * FS)    # Update every 100ms
-
-# ==== Action Mapping ====
-code_to_action = {
-    0: 'Idle',
-    1: 'Lifting',
-    2: 'Holding',
-    3: 'Lowering'
-}
-action_to_motor_cmd = {
-    'Lifting': 'MOTOR_FORWARD',
-    'Lowering': 'MOTOR_BACKWARD',
-    'Idle': 'MOTOR_STOP',
-    'Holding': 'MOTOR_STOP'
-}
-action_colors = {
-    'Idle': '#D3D3D3',
-    'Lifting': '#B0E0E6',
-    'Holding': '#98FB98',
-    'Lowering': '#FFB6C1'
-}
-
-# ==== Load Trained Model ====
+# ==== Model & Actions ====
 model = joblib.load("AnalyzeData/data/trained_emg_model.pkl")
+action_to_motor_cmd = {'Lifting': 'MOTOR_FORWARD', 'Resting': 'MOTOR_STOP'}
+action_colors = {'Lifting': (176, 224, 230), 'Resting': (211, 211, 211)}
 
-# ==== Signal Processing Functions ====
-def bandpass_filter(signal, low=20, high=450, fs=1000):
+# ==== Filters ====
+def bandpass_filter(signal, low=20, high=100, fs=500):
     nyq = 0.5 * fs
-    b, a = butter(4, [low/nyq, high/nyq], btype='band')
+    b, a = butter(4, [low / nyq, high / nyq], btype='band')
     return filtfilt(b, a, signal)
 
-def moving_avg(signal, window_size=100):
+def moving_avg(signal, window_size=50):
     return np.convolve(signal, np.ones(window_size)/window_size, mode='same')
 
 def extract_features(window):
@@ -54,82 +36,88 @@ def extract_features(window):
     zc = np.sum(np.diff(np.sign(window)) != 0)
     return [mav, rms, wl, zc]
 
-# ==== Initialize Serial & Buffers ====
-ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-time.sleep(2)  # Allow time for serial port to initialize
-
+# ==== Initialize Buffers ====
 buffer_emg = deque(maxlen=WINDOW_SIZE)
 buffer_time = deque(maxlen=WINDOW_SIZE)
 last_prediction = None
+step_counter = 0
 
-# ==== Initialize Real-Time Plot ====
-plt.ion()
-fig, ax = plt.subplots(figsize=(10, 4))
-line, = ax.plot([], [], label='EMG Smoothed')
-background = ax.axvspan(0, WINDOW_SIZE / FS, color='white', alpha=0.3)
-ax.set_xlim(0, WINDOW_SIZE / FS)
-ax.set_ylim(-0.1, 0.5)
-ax.set_xlabel('Time (s)')
-ax.set_ylabel('EMG')
-ax.set_title('Real-Time EMG Signal')
-ax.grid(True)
-text_label = ax.text(0.02, 0.9, '', transform=ax.transAxes)
-plt.legend()
-plt.tight_layout()
-
-print("✅ Real-time gesture recognition started...")
-
+# ==== Serial Connection ====
 try:
-    while True:
-        line_raw = ser.readline().decode('utf-8').strip()
-        if ',' not in line_raw:
-            continue
+    ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+    time.sleep(2)
+    print("✅ Serial port connected.")
+except serial.SerialException:
+    print("❌ Failed to connect to serial port.")
+    sys.exit(1)
 
+# ==== PyQtGraph Setup ====
+app = QtWidgets.QApplication([])
+win = pg.GraphicsLayoutWidget(title="Real-Time EMG")
+plot = win.addPlot(title="EMG Signal")
+plot.setYRange(-350, 350)
+curve_raw = plot.plot(pen='w')
+curve_smooth = plot.plot(pen='y')
+text_label = pg.TextItem(anchor=(0,1))
+plot.addItem(text_label)
+win.show()
+
+# ==== Real-time Update Function ====
+def update():
+    global step_counter, last_prediction
+
+    while ser.in_waiting:
         try:
-            timestamp_str, emg_str = line_raw.split(',')
+            line = ser.readline().decode('utf-8').strip()
+            if ',' not in line:
+                continue
+            timestamp_str, emg_str = line.split(',')
             timestamp = float(timestamp_str)
             emg_val = float(emg_str)
-        except ValueError:
+        except Exception:
             continue
 
         buffer_time.append(timestamp)
         buffer_emg.append(emg_val)
 
-        if len(buffer_emg) == WINDOW_SIZE:
-            # Signal processing: filter + rectify + smooth
+        # Prediction every STEP_SIZE
+        if len(buffer_emg) >= WINDOW_SIZE and step_counter >= STEP_SIZE:
             emg_array = np.array(buffer_emg)
             emg_centered = emg_array - np.mean(emg_array)
             emg_filtered = bandpass_filter(emg_centered)
             emg_rectified = np.abs(emg_filtered)
             emg_smoothed = moving_avg(emg_rectified)
 
-            # Feature extraction + prediction
             feats = extract_features(emg_smoothed)
-            pred_code = model.predict([feats])[0]
-            action = code_to_action.get(pred_code, 'Unknown')
+            pred_action = model.predict([feats])[0]
 
-            # Motor control logic (avoid repeated commands)
-            if action != last_prediction:
-                last_prediction = action
-                cmd = action_to_motor_cmd.get(action, 'MOTOR_STOP')
+            if pred_action != last_prediction:
+                last_prediction = pred_action
+                cmd = action_to_motor_cmd.get(pred_action, 'MOTOR_STOP')
                 ser.write((cmd + '\n').encode('utf-8'))
-                print(f"[{timestamp:.2f}s] Action: {action} → Sent Command: {cmd}")
+                print(f"[{timestamp:.2f}s] Prediction: {pred_action} | Sent CMD: {cmd}")
+            step_counter = 0
+        else:
+            step_counter += 1
 
-            # Update real-time plot
-            t_axis = np.linspace(0, WINDOW_SIZE / FS, WINDOW_SIZE)
-            line.set_xdata(t_axis)
-            line.set_ydata(emg_smoothed[:WINDOW_SIZE])
-            text_label.set_text(f"Prediction: {action}")
+        # Plot update
+        t_axis = np.linspace(0, WINDOW_SIZE / FS, WINDOW_SIZE)
+        raw_data = np.array(buffer_emg)
+        if len(raw_data) < WINDOW_SIZE:
+            raw_data = np.pad(raw_data, (0, WINDOW_SIZE - len(raw_data)))
+        curve_raw.setData(t_axis, raw_data)
 
-            # Update background color based on action
-            background.remove()
-            background = ax.axvspan(0, WINDOW_SIZE / FS, color=action_colors.get(action, 'white'), alpha=0.2)
+        if 'emg_smoothed' in locals():
+            curve_smooth.setData(t_axis, emg_smoothed[:WINDOW_SIZE])
+        else:
+            curve_smooth.clear()
 
-            fig.canvas.draw()
-            fig.canvas.flush_events()
+        text_label.setText(f"Prediction: {last_prediction or '---'}", color='w')
 
-            time.sleep(STEP_SIZE / FS)
+# ==== Timer ====
+timer = QtCore.QTimer()
+timer.timeout.connect(update)
+timer.start(1)
 
-except KeyboardInterrupt:
-    print("\n🛑 Real-time recognition stopped.")
-    ser.close()
+print("🎯 Real-time EMG recognition started...")
+sys.exit(app.exec_())
