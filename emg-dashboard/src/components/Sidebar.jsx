@@ -1,15 +1,27 @@
 import React from "react";
 
-export default function Sidebar() {
+const menuItems = [
+  { label: "History" },
+  { label: "Settings" }, // 名字仍为 Settings，但功能为 Introduction
+  { label: "Help" },
+];
+
+export default function Sidebar({ onMenuClick }) {
   return (
-    <aside className="bg-indigo-700 text-white p-4 space-y-4 min-h-screen">
-      <h1 className="text-xl font-bold mb-6">ExoPower</h1>
-      <nav className="space-y-2">
-        <a href="#" className="block hover:text-indigo-300">Dashboard</a>
-        <a href="#" className="block hover:text-indigo-300">History</a>
-        <a href="#" className="block hover:text-indigo-300">Settings</a>
-        <a href="#" className="block hover:text-indigo-300">Help</a>
-      </nav>
-    </aside>
+    <div className="bg-primary text-white vh-100 p-3" style={{ width: "240px" }}>
+      <h4 className="mb-4">ExoPower</h4>
+      <ul className="nav flex-column">
+        {menuItems.map(({ label }) => (
+          <li className="nav-item" key={label}>
+            <button
+              onClick={() => onMenuClick(label)}
+              className="nav-link text-white px-3 py-2 rounded w-100 text-start border-0 bg-transparent hover:bg-white hover:text-primary transition"
+            >
+              {label === "Settings" ? "Introduction" : label}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
