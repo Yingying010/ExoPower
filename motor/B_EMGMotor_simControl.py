@@ -125,7 +125,7 @@ def extract_features(signal):
     return [mav, rms, wl, zc, ssc, sk, ku]
 
 # === Model and Color Mapping ===
-model = joblib.load("rfModel.pkl")
+model = joblib.load("model/rfModel.pkl")
 action_colors = {'Lifting': (176, 224, 230), 'Resting': (211, 211, 211), 'unknown': (255, 255, 255)}
 
 # === PyQtGraph Setup ===

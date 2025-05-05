@@ -12,19 +12,16 @@ import atexit
 import joblib
 from dynamixel_sdk import *
 
-# ==== RF 模型加载 ====
-model = joblib.load("rfModel.pkl")
+model = joblib.load("model/rfModel.pkl")
 LABELS = ['Idle', 'Lifting']
 action_colors = {'Lifting': (176, 224, 230), 'Idle': (211, 211, 211), 'unknown': (255, 255, 255)}
 
-# ==== 串口 EMG 配置 ====
-SERIAL_PORT = '/dev/tty.usbserial-1110'
+SERIAL_PORT = '/dev/tty.usbmodem11102'
 BAUD_RATE = 115200
 FS = 500
 WINDOW_SIZE = 100
 STEP_SIZE = 50
 
-# ==== Dynamixel 参数 ====
 ADDR_TORQUE_ENABLE = 64
 ADDR_OPERATING_MODE = 11
 ADDR_GOAL_POSITION = 116
@@ -42,7 +39,7 @@ POS_REST = CENTER_POS
 POS_CW_180 = CENTER_POS - int(60 * DXL_RESOLUTION)
 POS_CCW_180 = CENTER_POS + int(60 * DXL_RESOLUTION)
 
-# ==== MotorThread 控制类 ====
+
 class MotorThread(QtCore.QThread):
     def __init__(self):
         super().__init__()
@@ -53,13 +50,10 @@ class MotorThread(QtCore.QThread):
         self.portHandler.openPort()
         self.portHandler.setBaudRate(BAUDRATE)
 
-        # 启用扭矩后归位
         self.packetHandler.write1ByteTxRx(self.portHandler, DXL_ID, ADDR_TORQUE_ENABLE, TORQUE_ENABLE)
         self.packetHandler.write4ByteTxRx(self.portHandler, DXL_ID, ADDR_GOAL_POSITION, 2048)  # 0°
-        QtCore.QThread.msleep(200)  # 等待电机回到中心位置
-
-
-        # === 初始化为位置模式 ===
+        QtCore.QThread.msleep(200) 
+        
         self.packetHandler.write1ByteTxRx(self.portHandler, DXL_ID, ADDR_OPERATING_MODE, 3)
         self.packetHandler.write4ByteTxRx(self.portHandler, DXL_ID, 108, 10)
         self.packetHandler.write4ByteTxRx(self.portHandler, DXL_ID, 112, 50)
@@ -92,7 +86,6 @@ class MotorThread(QtCore.QThread):
         self.packetHandler.write1ByteTxRx(self.portHandler, DXL_ID, ADDR_TORQUE_ENABLE, TORQUE_DISABLE)
         self.portHandler.closePort()
 
-# ==== 特征提取 ====
 def extract_features(signal):
     mav = np.mean(np.abs(signal))
     rms = np.sqrt(np.mean(signal ** 2))
@@ -103,7 +96,6 @@ def extract_features(signal):
     ku = 0 if np.all(signal == 0) else float(np.mean((signal - np.mean(signal))**4) / np.std(signal)**4)
     return [mav, rms, wl, zc, ssc, sk, ku]
 
-# ==== 全局缓存 ====
 buffer_emg = deque(maxlen=WINDOW_SIZE)
 prediction_result = {'label': 'Idle', 'emg_val': 0.0}
 state_buffer = deque(maxlen=7)
@@ -115,7 +107,6 @@ labels_all = []
 motor_thread = MotorThread()
 motor_thread.start()
 
-# ==== 串口连接 ====
 try:
     ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
     time.sleep(2)
@@ -124,7 +115,6 @@ except serial.SerialException:
     print("❌ Failed to connect to serial port.")
     sys.exit(1)
 
-# ==== 实时图形界面 ====
 app = QtWidgets.QApplication([])
 win = pg.GraphicsLayoutWidget(title="Real-Time EMG (Random Forest)")
 plot = win.addPlot(title="EMG Signal")
@@ -137,14 +127,13 @@ bg_rect = pg.LinearRegionItem([0, WINDOW_SIZE / FS], movable=False,
 plot.addItem(bg_rect)
 win.show()
 
-# ==== 串口读取线程（Signal方式） ====
 Signal = QtCore.Signal
 class SerialReaderThread(QtCore.QThread):
     data_received = Signal(float, float)
 
     def __init__(self):
         super().__init__()
-        self.running = True  # ✅ 添加控制标志
+        self.running = True 
 
     def run(self):
         while self.running:
@@ -159,14 +148,13 @@ class SerialReaderThread(QtCore.QThread):
                     self.data_received.emit(timestamp, emg_val)
             except Exception as e:
                 print(f"❌ Serial read error: {e}")
-                QtCore.QThread.msleep(50)  # 避免刷屏错误
+                QtCore.QThread.msleep(50)
 
     def stop(self):
         self.running = False
-        self.wait()  # ✅ 等待线程完全退出
+        self.wait()
 
 
-# ==== 串口数据处理函数 ====
 def on_data_received(timestamp, emg_val):
     global step_counter, last_prediction
     buffer_emg.append(emg_val)
@@ -207,12 +195,10 @@ def on_data_received(timestamp, emg_val):
     text_label.setText(f"Prediction: {pred_label}\nEMG: {emg_val:.2f}", color='w')
     bg_rect.setBrush(pg.mkBrush(*action_colors.get(pred_label, (255,255,255)), 80))
 
-# ==== 启动串口读取线程 ====
 serial_thread = SerialReaderThread()
 serial_thread.data_received.connect(on_data_received)
 serial_thread.start()
 
-# ==== 程序退出绘图 + 释放资源 ====
 @atexit.register
 def shutdown():
     serial_thread.stop()

@@ -11,10 +11,8 @@ import sys
 import atexit
 import joblib
 
-# ==== 加载 RF 模型 ====
-model = joblib.load("rfModel.pkl")  # 记得用 RF 模型训练并保存为 rfModel.pkl
+model = joblib.load("model/rfModel.pkl")
 
-# ==== 配置参数 ====
 SERIAL_PORT = '/dev/tty.usbserial-1110'
 BAUD_RATE = 115200
 FS = 500
@@ -33,12 +31,10 @@ state_buffer = deque(maxlen=5)
 last_prediction = None
 step_counter = 0
 
-# ✅ 保存全部数据用于最终可视化
 timestamps_all = []
 emg_all = []
 labels_all = []
 
-# ==== 特征提取函数（与训练时保持一致） ====
 def extract_features(signal):
     mav = np.mean(np.abs(signal))
     rms = np.sqrt(np.mean(signal ** 2))
@@ -49,7 +45,6 @@ def extract_features(signal):
     ku = 0 if np.all(signal == 0) else float(np.mean((signal - np.mean(signal))**4) / np.std(signal)**4)
     return [mav, rms, wl, zc, ssc, sk, ku]
 
-# ==== 串口连接 ====
 try:
     ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
     time.sleep(2)
@@ -58,7 +53,6 @@ except serial.SerialException:
     print("❌ Failed to connect to serial port.")
     sys.exit(1)
 
-# ==== PyQtGraph 设置 ====
 app = QtWidgets.QApplication([])
 win = pg.GraphicsLayoutWidget(title="Real-Time EMG (Random Forest)")
 plot = win.addPlot(title="EMG Signal")
@@ -71,13 +65,12 @@ bg_rect = pg.LinearRegionItem([0, WINDOW_SIZE / FS], movable=False,
 plot.addItem(bg_rect)
 win.show()
 
-# ==== 推理线程 ====
 def predictor():
     global prediction_result, last_prediction
     while True:
         try:
             window, timestamp = predict_queue.get()
-            signal = np.array(window) - np.mean(window)  # 中心化
+            signal = np.array(window) - np.mean(window)
 
             mav = np.mean(np.abs(signal))
             if mav < 3:
@@ -100,7 +93,6 @@ def predictor():
 
 threading.Thread(target=predictor, daemon=True).start()
 
-# ==== 实时更新 ====
 def update():
     global step_counter
     try:
@@ -133,7 +125,6 @@ def update():
     except Exception as e:
         print(f"❌ Update error: {e}")
 
-# ==== 程序退出时画图 ====
 @atexit.register
 def show_emg_plot():
     if timestamps_all:
@@ -159,7 +150,6 @@ def show_emg_plot():
         plt.tight_layout()
         plt.show()
 
-# ==== 启动绘图 ====
 timer = QtCore.QTimer()
 timer.timeout.connect(update)
 timer.start(1)

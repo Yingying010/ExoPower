@@ -42,7 +42,7 @@ FS = 500
 WINDOW_SIZE = int(0.4 * FS)
 STEP_SIZE = int(0.2 * FS)
 
-model = joblib.load("rfModel.pkl")
+model = joblib.load("model/rfModel.pkl")
 
 LABEL_MAP = {0: 'Idle', 1: 'Lifting'}
 action_to_motor_cmd = {'Idle': 'MOTOR_STOP', 'Lifting': 'MOTOR_FORWARD'}

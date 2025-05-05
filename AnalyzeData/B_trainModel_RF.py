@@ -12,7 +12,6 @@ from collections import Counter
 from scipy.stats import skew, kurtosis
 from sklearn.ensemble import RandomForestClassifier
 
-# ==== 配置 ====
 data_dir = 'signal_saved'
 window_size = 100
 step_size = 50
@@ -25,7 +24,6 @@ fs = 500
 #     b, a = butter(4, [low / nyq, high / nyq], btype='band')
 #     return filtfilt(b, a, signal)
 
-# ==== 特征提取函数 ====
 def extract_features(signal):
     mav = np.mean(np.abs(signal))
     rms = np.sqrt(np.mean(signal ** 2))
@@ -36,7 +34,6 @@ def extract_features(signal):
     ku = 0 if np.all(signal == 0) else float(np.mean((signal - np.mean(signal))**4) / np.std(signal)**4)
     return [mav, rms, wl, zc, ssc, sk, ku]
 
-# ==== 处理单个文件 ====
 def process_file(filepath):
     df = pd.read_csv(filepath)
     signal = df['EMG Value'].values
@@ -53,31 +50,27 @@ def process_file(filepath):
 
     return features, window_labels
 
-# ==== 读取数据 ====
 all_features, all_labels = [], []
 for file in os.listdir(data_dir):
     if file.endswith('.csv'):
         f_path = os.path.join(data_dir, file)
-        print(f"📂 正在处理：{f_path}")
+        print(f"📂 processing：{f_path}")
         feats, labels = process_file(f_path)
         all_features.extend(feats)
         all_labels.extend(labels)
 
 X = np.array(all_features)
 y_str = np.array(all_labels)
-print(f"✅ 读取完毕：共 {len(X)} 个窗口样本")
+print(f"✅ Reading completed: a total of {len(X)} window samples")
 
-# ==== 标签编码 ====
 le = LabelEncoder()
 y = le.fit_transform(y_str)
 joblib.dump(le, 'label_encoder.pkl')
 
-# ==== 训练 RandomForest 模型 ====
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 clf = RandomForestClassifier(n_estimators=200, max_depth=None, random_state=42)
 clf.fit(X_train, y_train)
 
-# ==== 模型评估 ====
 y_pred = clf.predict(X_test)
 print(classification_report(le.inverse_transform(y_test), le.inverse_transform(y_pred)))
 
@@ -90,6 +83,5 @@ plt.title("Confusion Matrix (Random Forest)")
 plt.tight_layout()
 plt.show()
 
-# ==== 保存模型 ====
 joblib.dump(clf, 'rfModel.pkl')
-print("✅ 模型已保存为 rfModel.pkl")
+print("✅ saved: rfModel.pkl")
