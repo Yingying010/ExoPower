@@ -1,8 +1,32 @@
+// import React from "react";
+// import Sidebar from "./components/Sidebar";
+// import EMGChart from "./components/EMGChart";
+
+// export default function App() {
+//   return (
+//     <div className="d-flex">
+//       <Sidebar />
+//       <div className="p-4 flex-grow-1">
+//         <h1 className="mb-4">EMG Dashboard</h1>
+//         <div className="card">
+//           <div className="card-body">
+//             <EMGChart />
+//             <div className="bg-white text-primary border border-primary rounded px-4 py-3 mt-3 w-100 shadow-sm">
+//               <strong>Status:</strong> <span className="ms-2">💪 Lifting</span>
+//             </div>
+//           </div>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
+
 import React, { useEffect, useState, useRef } from "react";
 import Sidebar from "./components/Sidebar";
 import EMGChart from "./components/EMGChart";
 import MotorGauge from "./components/MotorGauge";
 import Modal from "./components/Modal";
+
 
 export default function App() {
   const [angle, setAngle] = useState(0);
@@ -12,23 +36,27 @@ export default function App() {
   const [modalContent, setModalContent] = useState(null);
   const [lastAvgEMG, setLastAvgEMG] = useState(null);
 
+  const latestEMGRef = useRef(0);
   const emgValues = useRef([]); // 用于存储EMG数据
 
   // 模拟 lifting 状态切换与 EMG 值更新
   useEffect(() => {
     if (!isRunning) return;
-  
+
+
     const interval = setInterval(() => {
-      const isLifting = Math.random() > 0.5;
-      setStatus(isLifting ? "💪 Lifting" : "🛌 Resting");
-      setTargetAngle(isLifting ? 60 : 0);
+    const emgValue = latestEMGRef.current; // ✅ 现在拿到最新的 EMG 值
+    const isLifting = emgValue > 5;
   
-      const emgValue = +(Math.random() * 0.5 + 0.5).toFixed(2); // 0.5~1
-      emgValues.current.push(emgValue);
+    setStatus(isLifting ? "💪 Lifting" : "🛌 Resting");
+    setTargetAngle(isLifting ? 60 : 0);
+  
+    emgValues.current.push(emgValue);
     }, 300);
   
     return () => clearInterval(interval);
   }, [isRunning]);
+  
   
 
 
@@ -62,20 +90,20 @@ export default function App() {
           title: "Help - Component Descriptions",
           body: (
             <ul>
-              <li><strong>EMGChart：</strong> 实时显示肌电信号变化。</li>
-              <li><strong>MotorGauge：</strong> 显示马达旋转角度。</li>
-              <li><strong>Status：</strong> 当前检测的动作状态。</li>
-              <li><strong>Start/Pause：</strong> 控制系统是否进行动作识别与记录。</li>
+              <li><strong>EMGChart：</strong> Real-time display of EMG signal changes.</li>
+              <li><strong>MotorGauge：</strong> Display of motor rotation angle</li>
+              <li><strong>Status：</strong> The current state of the detected action.</li>
+              <li><strong>Start/Pause：</strong> Does the control system perform action recognition and recording.</li>
             </ul>
           ),
         });
         break;
       case "History":
         setModalContent({
-          title: "History - 上一次运动平均EMG",
+          title: "History - Average EMG Value of last record",
           body: lastAvgEMG
-            ? <p>上一次 lifting 和 resting 阶段的平均 EMG 值为：<strong>{lastAvgEMG}</strong></p>
-            : <p>暂无记录，请先开始一次运动吧！🏃‍♀️</p>,
+            ? <p>Average EMG value of last lifting and resting stage ：<strong>{lastAvgEMG}</strong></p>
+            : <p>No record！Strat your action!🏃‍♀️</p>,
         });
         break;
       case "Settings":
@@ -83,10 +111,10 @@ export default function App() {
           title: "Introduction - Why Choose ExoPower?",
           body: (
             <ul>
-              <li>⚡ 智能动作识别自动助力</li>
-              <li>🎯 精准角度控制</li>
-              <li>📊 简洁仪表盘</li>
-              <li>📱 支持远程查看</li>
+              <li>⚡ Samrt Motion Recognition Auto Boost</li>
+              <li>🎯 Precise angle control </li>
+              <li>📊 Simple Dashboard </li>
+              <li>📱 Supports remote viewing </li>
             </ul>
           ),
         });
@@ -108,13 +136,16 @@ export default function App() {
             {isRunning ? "Pause ⏸" : "Start ▶️"}
           </button>
           <span className="text-muted">
-            当前状态：<strong>{status}</strong>
+            Current Status：<strong>{status}</strong>
           </span>
         </div>
 
         <div className="card">
           <div className="card-body">
-            <EMGChart isRunning={isRunning} emgValues={emgValues.current} />
+            <EMGChart 
+            isRunning={isRunning}
+            emgValues={emgValues.current}
+            latestEMGRef={latestEMGRef} />
             <div className="d-flex align-items-center justify-content-between mt-4">
               <MotorGauge angle={angle} />
               <div className="bg-white text-primary border border-primary rounded px-4 py-3 w-100 ms-4 shadow-sm">
@@ -124,6 +155,7 @@ export default function App() {
           </div>
         </div>
       </div>
+
 
       {modalContent && (
         <Modal
@@ -136,3 +168,4 @@ export default function App() {
     </div>
   );
 }
+

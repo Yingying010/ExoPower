@@ -4,6 +4,16 @@ This repository contains all code related to the ExoPower system — a wearable,
 
 ## 📁 Folder Structure
 
+### `arduinoRun/`
+Arduino-side programs for real-time EMG acquisition, signal preprocessing, timestamp tracking, and MQTT transmission.
+- `ReadSignal/`: Reads EMG signals after basic filtering and transmits them via serial communication.
+- `timestep/`: Extends ReadSignal by adding millisecond-precision timestamps to each data point.
+- `cloud/`: Builds upon timestep to publish timestamped EMG data to MQTT topics, enabling wireless transmission to another device or cloud endpoint.
+- `baoluo/`: Extracts the envelope of the EMG signal (i.e., smoothed amplitude) to facilitate cleaner classification input or visualization.
+
+This folder contains Arduino sketches corresponding to the hardware-side signal processing pipeline. Each step builds incrementally on the previous, forming the core data path from muscle activation to remote data use.
+
+
 ### `AnalyzeData/`
 Scripts for EMG data preprocessing, feature extraction, model training, and evaluation.
 
@@ -38,6 +48,9 @@ Scripts for MQTT-based communication and cloud integration with AWS IoT Core.
 - `cloud.py`, `read.py`: Auxiliary cloud communication and debug scripts.
 - `emg02.cert.pem`, `emg02.private.key`, `root-CA.crt`: AWS IoT security credentials.
 - `signal_1.csv`: Sample labeled EMG dataset used for testing.
+
+### `emg-dashboard`
+Web-based EMG dashboard for cloud-side signal visualization and remote status monitoring. This module is built with a modern frontend framework (e.g., Vite + Vue/React) and connects to AWS IoT via MQTT.
 
 ## 🚀 Features
 

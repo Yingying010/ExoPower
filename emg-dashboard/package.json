@@ -4,16 +4,24 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node server.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.787.0",
+    "aws-sdk": "^2.1692.0",
     "bootstrap": "^5.3.3",
     "chart.js": "^4.4.9",
-    "esbuild": "^0.25.2",
+    "chartjs-plugin-datalabels": "^2.2.0",
+    "csv-parser": "^3.2.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "mqtt": "^5.11.0",
     "react": "^18.2.0",
     "react-chartjs-2": "^5.3.0",
-    "react-circular-progressbar": "^2.2.0",
     "react-dom": "^18.2.0",
+    "serialport": "^13.0.0",
+    "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {

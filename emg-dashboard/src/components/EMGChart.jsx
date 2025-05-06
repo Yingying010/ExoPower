@@ -1,84 +1,117 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Line } from "react-chartjs-2";
-import io from "socket.io-client";
-
-// 注册 Chart.js 所需组件
+import { io } from "socket.io-client";
 import {
   Chart as ChartJS,
   LineElement,
   PointElement,
-  CategoryScale,
   LinearScale,
   Title,
   Tooltip,
   Legend,
+  CategoryScale,
 } from "chart.js";
+import ChartDataLabels from "chartjs-plugin-datalabels";
 
+// 注册 Chart.js 模块和插件
 ChartJS.register(
   LineElement,
   PointElement,
-  CategoryScale,
   LinearScale,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  CategoryScale,
+  ChartDataLabels
 );
 
-// 连接 socket.io 服务器
-const socket = io("http://localhost:5050");
+// 初始化 socket.io 客户端
+const socket = io("http://localhost:3001");
 
-const EMGChart = () => {
-  const [emgData, setEmgData] = useState([]);
-  const [chartKey, setChartKey] = useState(0);
+socket.on("connect", () => {
+  console.log("✅ Socket 已连接，ID:", socket.id);
+});
+
+export default function EMGChart({ isRunning, emgValues, latestEMGRef }) {
+  const [dataPoints, setDataPoints] = useState([]);
+  const [latestValue, setLatestValue] = useState(null);
+  const counterRef = useRef(0); // 使用 ref 做采样点编号
 
   useEffect(() => {
-    socket.on("emg_data", (message) => {
-      console.log("📥 接收到数据：", message);
-      console.log("🔍 signal_value:", message.signal_value);
+    const handleEmg = (value) => {
+      const num = parseFloat(value);
+      if (isNaN(num)) return;
 
-      setEmgData((prevData) => {
-        const updated = [...prevData, message].slice(-30); // 仅保留最近30个
-        return updated;
-      });
-    });
+      const newPoint = { x: counterRef.current, y: num };
+      setDataPoints((prev) => [...prev.slice(-49), newPoint]);
+      setLatestValue(num);
+      counterRef.current += 1;
+
+      if (latestEMGRef) {
+        latestEMGRef.current = num;
+        console.log("📡 Update latestEMGRef.current =", latestEMGRef.current);
+      }
+
+      console.log("📡 收到 EMG 数据:", num);
+      console.log("📡 添加点:", newPoint);
+      console.log("📡 最新 EMG：", num);
+      console.log("📡 更新 latestEMGRef.current =", latestEMGRef.current);
+
+    };
+
+    socket.on("emg", handleEmg);
 
     return () => {
-      socket.off("emg_data");
+      socket.off("emg", handleEmg);
     };
   }, []);
 
-  useEffect(() => {
-    setChartKey((prev) => prev + 1);
-  }, [emgData]);
-
-  const chartData = {
-    labels: emgData.map((point) =>
-      new Date(point.timestamp * 1000).toLocaleTimeString()
-    ),
+  const data = {
     datasets: [
       {
         label: "EMG Signal",
-        data: emgData.map((point) => point.signal_value), // ✅ 使用正确字段名
-        borderColor: "rgba(75,192,192,1)",
-        backgroundColor: "rgba(75,192,192,0.2)",
+        data: dataPoints,
+        parsing: false,
+        fill: false,
+        borderColor: "rgb(75, 192, 192)",
         tension: 0.3,
       },
     ],
   };
 
-  const chartOptions = {
+  const options = {
     responsive: true,
+    plugins: {
+      legend: { position: "top" },
+      title: {
+        display: true,
+        text: "EMG Realtime Signal (Scrolling Window)",
+      },
+      datalabels: {
+        display: false,
+        align: "end",
+        anchor: "end",
+        color: "blue",
+        font: {
+          size: 10,
+        },
+        formatter: (value) => value.y.toFixed(2),
+      },
+    },
     scales: {
       x: {
-        display: true,
+        type: "linear",
         title: {
           display: true,
-          text: "Time",
+          text: "timestamp",
+        },
+        ticks: {
+          stepSize: 1,
         },
       },
       y: {
-        type: "linear",
-        display: true,
+        min: -300,
+        max: 300,
         title: {
           display: true,
           text: "EMG Value",
@@ -88,11 +121,18 @@ const EMGChart = () => {
   };
 
   return (
-    <div style={{ width: "100%", maxWidth: "800px", margin: "0 auto" }}>
-      <h2>Real-Time EMG Data</h2>
-      <Line key={chartKey} data={chartData} options={chartOptions} />
+    <div className="card mt-4">
+      <div className="card-header">
+        <strong>Status：</strong> Lifting
+        <span style={{ marginLeft: "20px", color: "blue" }}>
+          Current EMG Value：{latestValue !== null ? latestValue.toFixed(2) : "--"}
+        </span>
+      </div>
+      <div className="card-body" style={{ height: "400px", width: "100%" }}>
+        <Line data={data} options={options} />
+      </div>
     </div>
   );
-};
+}
 
-export default EMGChart;
+//--------------------------------------------ver2
